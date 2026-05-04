@@ -648,59 +648,145 @@ from kivy.properties import ObjectProperty, StringProperty
 
 
 class StudentForm(BasePortal):
-    # Declare these at the top of the class, OUTSIDE __init__
+    # Declare properties at the top for logic outside __init__
     c_lbl = ObjectProperty(None)
     name_lbl = ObjectProperty(None)
 
     def __init__(self, **kwargs):
-        # 1. Create the label objects BEFORE calling super()
-        # This ensures they exist when .kv looks for them
+        # 1. Initialize variables and UI elements
         self.name_lbl = Label(text="Welcome")
         self.c_lbl = Label(text="0")
+        self.aadhar_path = None  # Critical to prevent save errors
 
         super().__init__(**kwargs)
-        # Main Layout
-        root = BoxLayout(orientation='vertical', padding=10, spacing=10);
-        set_rounded_panel(root, BG, 0)
-        root.add_widget(Label(text="STUDENT REGISTRATION", font_size='22sp', bold=True, color=PRIMARY, size_hint_y=None,
-                              height=dp(60)))
 
-        # THE SCROLLVIEW FIX: Put all inputs inside here
+        # Main Layout
+        root = BoxLayout(orientation='vertical', padding=10, spacing=10)
+        set_rounded_panel(root, BG, 0)
+
+        root.add_widget(Label(
+            text="STUDENT REGISTRATION",
+            font_size='22sp',
+            bold=True,
+            color=PRIMARY,
+            size_hint_y=None,
+            height=dp(60)
+        ))
+
+        # Scrollable Form Area
         scroll = ScrollView(size_hint=(1, 1))
-        grid = GridLayout(cols=1, spacing=8, size_hint_y=None, padding=10);
+        grid = GridLayout(cols=1, spacing=8, size_hint_y=None, padding=10)
         grid.bind(minimum_height=grid.setter('height'))
 
-        self.name_in = themed_input("Full Name");
+        # Input Fields
+        self.name_in = themed_input("Full Name")
         self.phone_in = themed_input("Phone")
-        self.hno_in = themed_input("House No");
+        self.hno_in = themed_input("House No")
         self.strt_in = themed_input("Street")
-        self.land_in = themed_input("Landmark");
+        self.land_in = themed_input("Landmark")
         self.area_in = themed_input("Area")
-        self.city_in = themed_input("City");
+        self.city_in = themed_input("City")
         self.pin_in = themed_input("Pin")
-        self.cls_in = themed_input("Class");
+        self.cls_in = themed_input("Class")
         self.sub_in = themed_input("Subjects")
 
-        self.doc_lbl = Label(text="No ID Uploaded", color=MUTED, size_hint_y=None, height=25)
-        u_btn = themed_button("Upload ID", PRIMARY, 45);
+        # Upload & Submit UI
+        self.doc_lbl = Label(text="No ID Uploaded", color=MUTED, size_hint_y=None, height=dp(25))
+        u_btn = themed_button("Upload ID", PRIMARY, 45)
         u_btn.bind(on_press=self.trigger_picker)
-        s_btn = themed_button("SUBMIT", SUCCESS, 55);
+
+        s_btn = themed_button("SUBMIT", SUCCESS, 55)
         s_btn.bind(on_press=self.save)
 
-        for w in [self.name_in, self.phone_in, self.hno_in, self.strt_in, self.land_in, self.area_in, self.city_in,
-                  self.pin_in, self.cls_in, self.sub_in, self.doc_lbl, u_btn, s_btn]: grid.add_widget(w)
-        scroll.add_widget(grid);
-        root.add_widget(scroll);
+        # Add all to grid
+        fields = [
+            self.name_in, self.phone_in, self.hno_in, self.strt_in,
+            self.land_in, self.area_in, self.city_in, self.pin_in,
+            self.cls_in, self.sub_in, self.doc_lbl, u_btn, s_btn
+        ]
+        for w in fields:
+            grid.add_widget(w)
+
+        scroll.add_widget(grid)
+        root.add_widget(scroll)
         self.add_widget(root)
 
+    # --- ANDROID INTENT LOGIC ---
+    def trigger_picker(self, _instance):
+        if platform == 'android':
+            try:
+                from jnius import autoclass
+                from android import activity
+                Intent = autoclass('android.content.Intent')
+                intent = Intent(Intent.ACTION_GET_CONTENT)
+                intent.setType("*/*")
+                intent.addCategory(Intent.CATEGORY_OPENABLE)
+                activity.bind(on_activity_result=self.on_file_result)
+                autoclass('org.kivy.android.PythonActivity').mActivity.startActivityForResult(intent, 1001)
+            except Exception as e:
+                show_popup("Error", str(e))
+        else:
+            # PC Fallback using Kivy's built-in FileChooser
+            from kivy.uix.filechooser import FileChooserIconView
+            from kivy.uix.popup import Popup
+            content = BoxLayout(orientation='vertical', padding=10)
+            fc = FileChooserIconView(path=os.path.expanduser("~"), filters=['*.jpg', '*.pdf', '*.png'])
+            btn = themed_button("SELECT FILE", SUCCESS)
+            content.add_widget(fc)
+            content.add_widget(btn)
+            p = Popup(title="Choose File", content=content, size_hint=(0.9, 0.9))
+            btn.bind(on_press=lambda x: [self.handle_pc_file(fc.selection), p.dismiss()])
+            p.open()
+
+    def on_file_result(self, req, res, intent):
+        if req != 1001 or not intent:
+            return
+        try:
+            from jnius import autoclass
+            uri = intent.getData()
+            dest_dir = os.path.join(App.get_running_app().user_data_dir, "uploads")
+            if not os.path.exists(dest_dir):
+                os.makedirs(dest_dir)
+
+            # Smart extension detection
+            ext = ".pdf" if "pdf" in str(uri).lower() else ".png"
+            path = os.path.join(dest_dir, f"id_{random.randint(100, 999)}{ext}")
+
+            # Stream the data from the Android Content Resolver
+            PythonActivity = autoclass('org.kivy.android.PythonActivity')
+            stream = PythonActivity.mActivity.getContentResolver().openInputStream(uri)
+            with open(path, 'wb') as f:
+                buf = bytearray(1024 * 1024)
+                while True:
+                    read = stream.read(buf)
+                    if read <= 0: break
+                    f.write(buf[:read])
+            stream.close()
+
+            self.aadhar_path = path
+            self.doc_lbl.text = "✓ ID Loaded"
+            self.doc_lbl.color = SUCCESS
+        except Exception as e:
+            show_popup("Error", f"Could not load file: {str(e)}")
+
+    def handle_pc_file(self, sel):
+        if sel:
+            import shutil
+            dest = os.path.join(os.getcwd(), "uploads")
+            if not os.path.exists(dest):
+                os.makedirs(dest)
+            path = os.path.join(dest, os.path.basename(sel[0]))
+            shutil.copy2(sel[0], path)
+            self.aadhar_path = path
+            self.doc_lbl.text = "✓ ID Loaded"
+            self.doc_lbl.color = SUCCESS
+
+    # --- SAVE LOGIC ---
     def save(self, *args):
-        # 1. Validation: Ensure required fields are not empty
         if not all([self.name_in.text, self.phone_in.text, self.aadhar_path]):
             show_popup("Error", "Please fill all fields and upload ID")
             return
 
-        # 2. Create the data dictionary for Firebase
-        # This must include the same fields you have in your SQLite table
         student_data = {
             "email": self.user_email,
             "name": self.name_in.text,
@@ -714,38 +800,24 @@ class StudentForm(BasePortal):
             "class": self.cls_in.text,
             "subjects": self.sub_in.text,
             "aadhar_path": self.aadhar_path,
-            "status": "pending"  # Admin's load_v looks for this status
+            "status": "pending"
         }
 
-        # 3. Save locally to SQLite (Your existing code)
+        # Local SQLite Save
         db.query(
             "INSERT INTO student_profiles (email, name, phone, area, city, landmark, house_no, street, pincode, class, subjects, aadhar_path, status) VALUES (?,?,?,?,?,?,?,?,?,?,?,?, 'pending')",
             (self.user_email, self.name_in.text, self.phone_in.text, self.area_in.text, self.city_in.text,
              self.land_in.text, self.hno_in.text, self.strt_in.text, self.pin_in.text, self.cls_in.text,
              self.sub_in.text, self.aadhar_path))
 
-        # 4. Save to the Cloud (The "Bridge" to other mobiles)
-        # This sends the data to the 'student_profiles' folder in your Firebase URL
+        # Cloud Firebase Save
         cloud_success = db.save_to_cloud("student_profiles", self.user_email, student_data)
 
         if cloud_success:
             show_popup("Done", "Wait for Admin Approval")
             self.manager.current = 'login'
         else:
-            # If internet fails, it's still saved locally, but warn the user
             show_popup("Sync Issue", "Saved locally, but could not reach cloud. Check internet.")
-
-    def trigger_picker(self, instance):
-        # This will be called when you press the upload button
-        print("Triggering File Picker...")
-
-        # If you are on Android, you'll eventually use 'plyer' or 'filechooser'
-        # For now, let's just show a simple notification
-        try:
-            from kivymd.toast import toast
-            toast("File picker coming soon!")
-        except:
-            print("Toast not available, but button is working!")
 
 
 class TutorForm(BaseForm):
@@ -1034,6 +1106,17 @@ class Signup(Screen):
             def after_email_sent(success):
                 loading_popup.dismiss()
                 if success:
+                    # --- CLOUD SYNC START ---
+                    # This pushes the data to Firebase so the Admin can see it
+                    user_data = {
+                        "email": email,
+                        "role": role,
+                        "status": "pending",
+                        "is_verified": 0
+                    }
+                    db.save_to_cloud("users", email, user_data)
+                    # --- CLOUD SYNC END ---
+
                     # Pass data to Manager
                     self.manager.temp_email = email
                     self.manager.temp_role = role
@@ -1308,28 +1391,48 @@ class AdminDashboard(Screen):
     # --- TAB 2: VERIFY USERS ---
     def load_v(self):
         self.g2.clear_widgets()
+        # FETCH FROM CLOUD instead of db.query
         for role, table in [('tutor', 'tutor_profiles'), ('student', 'student_profiles')]:
-            data = db.query(f"SELECT * FROM {table} WHERE status='pending'")
-            for d in data:
-                row = BoxLayout(size_hint_y=None, height=dp(80), padding=10, spacing=10)
-                set_rounded_panel(row, (0.9, 0.95, 1, 1))
-                row.add_widget(Label(text=f"{d['name']}\n{role.upper()}", color=(0, 0, 0, 1)))
-                app_btn = themed_button("APPROVE", SUCCESS, 50)
-                app_btn.bind(on_press=lambda x, t=table, e=d['email'], r=role: self.approve_user_now(t, e, r))
-                row.add_widget(app_btn)
-                self.g2.add_widget(row)
+            # This fetches the master list from your Firebase URL
+            cloud_data = db.get_all_from_cloud(table)
 
-    def approve_user_now(self, table, email, role):
-        local_data = db.query(f"SELECT * FROM {table} WHERE email=?", (email,))
-        if local_data:
-            full_data = dict(local_data[0])
-            full_data['status'] = 'approved'
-            if db.save_to_cloud(table, email, full_data):
-                db.query(f"UPDATE {table} SET status='approved' WHERE email=?", (email,))
-                show_popup("Success", f"{email} approved!")
-                self.on_enter()
-            else:
-                show_popup("Error", "Cloud sync failed.")
+            if not cloud_data or cloud_data == "null":
+                continue
+
+            for email_key, d in cloud_data.items():
+                if d.get('status') == 'pending':
+                    user_email = d.get('email', email_key.replace('_', '.'))
+
+                    # Create the UI row for this user
+                    row = BoxLayout(size_hint_y=None, height=dp(80), padding=10, spacing=10)
+                    set_rounded_panel(row, (0.9, 0.95, 1, 1))
+                    row.add_widget(Label(text=f"{d.get('name', 'New')}\n{role.upper()}", color=(0, 0, 0, 1)))
+
+                    app_btn = themed_button("APPROVE", (0, 0.6, 0.3, 1), 50)
+                    # Pass the cloud data directly to the approval function
+                    app_btn.bind(on_press=lambda x, t=table, e=user_email, r=role, data=d:
+                    self.approve_user_now(t, e, r, data))
+                    row.add_widget(app_btn)
+                    self.g2.add_widget(row)
+
+    def approve_user_now(self, table, email, role, full_data):
+        # 1. Update the status in the data dictionary
+        full_data['status'] = 'approved'
+
+        # 2. Save 'approved' status back to Firebase Profile (Student or Tutor)
+        if db.save_to_cloud(table, email, full_data):
+
+            # 3. CRITICAL: Update the 'users' node so the student's phone allows login
+            # This is what the login screen checks!
+            db.save_to_cloud("users", email, {"status": "approved", "is_verified": 1})
+
+            # 4. Sync to your Admin's local DB for a backup record
+            db.query(f"INSERT OR REPLACE INTO {table} (email, status) VALUES (?, 'approved')", (email,))
+
+            show_popup("Success", f"{email} approved and synced to Cloud!")
+            self.on_enter()  # Refresh the lists
+        else:
+            show_popup("Error", "Cloud sync failed. Check internet.")
 
     # --- TAB 4: BROADCAST ---
     def send_b(self, role):
