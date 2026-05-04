@@ -2,7 +2,6 @@ import os, sqlite3, shutil, requests
 from kivy.utils import platform
 from kivy.app import App
 
-
 class Database:
     def __init__(self):
         self.db_name = "managuru.db"
@@ -10,37 +9,27 @@ class Database:
         self.cloud_url = "https://myguru-app-default-rtdb.firebaseio.com/"
 
     def get_path(self):
-        # 1. Return the path if it was already calculated
         if self.db_path:
             return self.db_path
 
-        # 2. Check if we are running on Android
-        # Using 'PYTHON_SERVICE_ARGUMENT' or the kivy platform utility
         if platform == 'android' or 'PYTHON_SERVICE_ARGUMENT' in os.environ:
-            # Use the app's private, writable data directory on the phone
             data_dir = App.get_running_app().user_data_dir
-
             if not os.path.exists(data_dir):
                 os.makedirs(data_dir)
-
             self.db_path = os.path.join(data_dir, self.db_name)
         else:
-            # 3. Standard path for Windows/Desktop development
-            # This keeps the DB in your project folder while coding in PyCharm
             base_dir = os.path.dirname(os.path.abspath(__file__))
             self.db_path = os.path.join(base_dir, self.db_name)
 
         return self.db_path
 
     def get_connection(self):
-        # We wrap this in a try-except to catch permission issues immediately
         try:
             conn = sqlite3.connect(self.get_path())
             conn.row_factory = sqlite3.Row
             return conn
         except sqlite3.OperationalError as e:
             print(f"Connection Error: {e}")
-            # If it fails, fallback to a local file as a last resort
             return sqlite3.connect(self.db_name)
 
     def setup_db(self, *args):
@@ -54,7 +43,8 @@ class Database:
         ]
         try:
             with self.get_connection() as conn:
-                for cmd in create_commands: conn.execute(cmd)
+                for cmd in create_commands:
+                    conn.execute(cmd)
 
                 for table in ["student_profiles", "tutor_profiles"]:
                     cols = ["house_no", "street", "landmark", "city", "pincode", "class", "subjects", "aadhar_path"]
@@ -68,6 +58,20 @@ class Database:
             print("--- DATABASE SETUP COMPLETE ---")
         except Exception as e:
             print(f"DB Setup Error: {e}")
+
+    # --- NEW METHOD FIXED INDENTATION ---
+    def update_credit_cloud(self, email, new_credits):
+        """Updates the credit count in Firebase for a specific student."""
+        try:
+            clean_email = email.replace('.', '_')
+            # Using PATCH with a dictionary to fix the 400 error
+            url = f"{self.cloud_url}student_profiles/{clean_email}.json"
+            data = {"credits": int(new_credits)}
+            response = requests.patch(url, json=data)
+            return response.status_code == 200
+        except Exception as e:
+            print(f"Credit Sync Error: {e}")
+            return False
 
     def create_default_admin(self):
         existing = self.query("SELECT * FROM users WHERE role='admin'", fetchone=True)
