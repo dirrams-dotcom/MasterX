@@ -1,3 +1,5 @@
+# mytutor.kv
+
 <SignupScreen>:
     name: 'signup'
 
@@ -8,7 +10,7 @@
 
         MDCard:
             orientation: 'vertical'
-            size_hint: (.9, None)
+            size_hint: (0.9, None)
             height: self.minimum_height
             padding: "20dp"
             spacing: "15dp"
@@ -57,14 +59,16 @@
 
             MDRaisedButton:
                 text: "REGISTER"
-                size_hint_x: 1
-                height: "55dp"
                 md_bg_color: 0, 0.6, 0.3, 1
+                size_hint_x: 0.9
+                size_hint_y: None
+                height: "50dp"
+                pos_hint: {"center_x": 0.5}
                 on_release: root.do_signup()
 
             MDTextButton:
                 text: "Back to Login"
-                pos_hint: {"center_x": .5}
+                pos_hint: {"center_x": 0.5}
                 on_release: root.manager.current = 'login'
 
 <BaseForm>:
@@ -75,7 +79,7 @@
 
         MDBoxLayout:
             orientation: 'vertical'
-            size_hint: (.9, None)
+            size_hint: (0.9, None)
             height: self.minimum_height
             spacing: "20dp"
 
@@ -101,9 +105,8 @@
 
                 MDRaisedButton:
                     text: "SELECT ID PROOF"
-                    pos_hint: {"center_x": .5}
+                    pos_hint: {"center_x": 0.5}
                     on_release: root.trigger_picker(self)
-# mytutor.kv
 
 <StudentPortal>:
     BoxLayout:
@@ -111,7 +114,6 @@
         padding: dp(10)
         spacing: dp(10)
 
-        # Header Card
         MDBoxLayout:
             size_hint_y: None
             height: dp(70)
@@ -121,7 +123,7 @@
             radius: [20, ]
 
             MDLabel:
-                text: root.name_lbl.text  # Link to Python property
+                text: root.name_lbl.text
                 bold: True
                 font_style: "Subtitle2"
 
@@ -131,7 +133,6 @@
                 size_hint_x: None
                 width: dp(50)
 
-            # The Rounded Credit Label
             MDLabel:
                 text: root.c_lbl.text
                 size_hint_x: None
@@ -141,13 +142,12 @@
                 text_color: 1, 1, 1, 1
                 canvas.before:
                     Color:
-                        rgba: 0.1, 0.7, 0.3, 1  # Success Green
+                        rgba: 0.1, 0.7, 0.3, 1
                     RoundedRectangle:
                         pos: self.pos
                         size: self.size
                         radius: [20, ]
 
-        # Search Area
         MDTextField:
             hint_text: "Search Area"
             mode: "rectangle"
