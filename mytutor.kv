@@ -1,0 +1,154 @@
+<SignupScreen>:
+    name: 'signup'
+
+    MDAnchorLayout:
+        anchor_x: 'center'
+        anchor_y: 'top'
+        padding: [0, "50dp", 0, 0]
+
+        MDCard:
+            orientation: 'vertical'
+            size_hint: (.9, None)
+            height: self.minimum_height
+            padding: "20dp"
+            spacing: "15dp"
+            elevation: 0
+            md_bg_color: 0, 0, 0, 0
+
+            MDLabel:
+                text: "SIGN UP"
+                halign: "center"
+                font_style: "H4"
+                bold: True
+                theme_text_color: "Primary"
+                size_hint_y: None
+                height: "80dp"
+
+            MDTextField:
+                id: signup_email
+                hint_text: "Email"
+                mode: "rectangle"
+                fill_color_normal: 1, 1, 1, 1
+
+            MDTextField:
+                id: signup_password
+                hint_text: "Password"
+                password: True
+                mode: "rectangle"
+                fill_color_normal: 1, 1, 1, 1
+
+            MDBoxLayout:
+                orientation: 'horizontal'
+                spacing: "10dp"
+                size_hint_y: None
+                height: "50dp"
+
+                MDRaisedButton:
+                    text: "Student"
+                    size_hint_x: 0.5
+                    md_bg_color: 0.2, 0.6, 0.8, 1
+                    on_release: root.set_role('student')
+
+                MDRaisedButton:
+                    text: "Tutor"
+                    size_hint_x: 0.5
+                    md_bg_color: 0.4, 0.4, 0.4, 1
+                    on_release: root.set_role('tutor')
+
+            MDRaisedButton:
+                text: "REGISTER"
+                size_hint_x: 1
+                height: "55dp"
+                md_bg_color: 0, 0.6, 0.3, 1
+                on_release: root.do_signup()
+
+            MDTextButton:
+                text: "Back to Login"
+                pos_hint: {"center_x": .5}
+                on_release: root.manager.current = 'login'
+
+<BaseForm>:
+    name: 'base_form'
+    MDAnchorLayout:
+        anchor_y: 'top'
+        padding: [0, "60dp", 0, 0]
+
+        MDBoxLayout:
+            orientation: 'vertical'
+            size_hint: (.9, None)
+            height: self.minimum_height
+            spacing: "20dp"
+
+            MDLabel:
+                text: "Verification"
+                halign: "center"
+                font_style: "H5"
+                bold: True
+
+            MDCard:
+                orientation: 'vertical'
+                padding: "15dp"
+                size_hint_y: None
+                height: "120dp"
+                radius: [15,]
+                md_bg_color: 0.95, 0.95, 0.95, 1
+
+                MDLabel:
+                    id: doc_lbl
+                    text: "No ID Uploaded"
+                    halign: "center"
+                    theme_text_color: "Secondary"
+
+                MDRaisedButton:
+                    text: "SELECT ID PROOF"
+                    pos_hint: {"center_x": .5}
+                    on_release: root.trigger_picker(self)
+# mytutor.kv
+
+<StudentPortal>:
+    BoxLayout:
+        orientation: 'vertical'
+        padding: dp(10)
+        spacing: dp(10)
+
+        # Header Card
+        MDBoxLayout:
+            size_hint_y: None
+            height: dp(70)
+            padding: dp(10)
+            spacing: dp(10)
+            md_bg_color: 1, 1, 1, 1
+            radius: [20, ]
+
+            MDLabel:
+                text: root.name_lbl.text  # Link to Python property
+                bold: True
+                font_style: "Subtitle2"
+
+            MDLabel:
+                text: "Credits:"
+                theme_text_color: "Hint"
+                size_hint_x: None
+                width: dp(50)
+
+            # The Rounded Credit Label
+            MDLabel:
+                text: root.c_lbl.text
+                size_hint_x: None
+                width: dp(40)
+                halign: "center"
+                theme_text_color: "Custom"
+                text_color: 1, 1, 1, 1
+                canvas.before:
+                    Color:
+                        rgba: 0.1, 0.7, 0.3, 1  # Success Green
+                    RoundedRectangle:
+                        pos: self.pos
+                        size: self.size
+                        radius: [20, ]
+
+        # Search Area
+        MDTextField:
+            hint_text: "Search Area"
+            mode: "rectangle"
+            on_text: root.load(self.text.lower())
